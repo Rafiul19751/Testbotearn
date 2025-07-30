@@ -100,17 +100,17 @@
     <div class="container">
         <!-- Home / Task View -->
         <div id="home-view" class="view">
-            <div class="header"><h1>Earning Technology</h1><p>Watch Ads and Earn Money</p></div>
+            <div class="header"><h1>Earning Technology</h1><p>Watch Ads and Earn USDT</p></div>
             <div class="card">
                 <h2>Current Balance</h2>
-                <div class="balance-amount" id="balanceDisplay">৳ 0.00</div>
+                <div class="balance-amount" id="balanceDisplay">USDT 0.00</div>
                 <div class="ad-info-grid">
                     <div class="ad-info-item"><h3 id="adCountDisplay">0</h3><p>Total Ads Watched</p></div>
                     <div class="ad-info-item"><h3 id="dailyAdCountDisplay">0 / 1000</h3><p>Today's Ads</p></div>
                 </div>
             </div>
-            <div class="ad-buttons"><button class="btn" id="rewardedBtn">Watch Rewarded Ad</button></div>
-            <button class="btn" id="mainWithdrawBtn" disabled>Reach ৳100 to Withdraw</button>
+            <div class="ad-buttons"><button class="btn" id="rewardedBtn">Watch Ad (+0.01 USDT)</button></div>
+            <button class="btn" id="mainWithdrawBtn" disabled>Reach 10.00 USDT to Withdraw</button>
         </div>
 
         <!-- Withdraw View -->
@@ -118,14 +118,14 @@
             <div class="header"><h1>Withdraw</h1><p>Request your earnings</p></div>
             <div class="card">
                 <h2>Your Balance</h2>
-                <div class="balance-amount" id="withdrawBalanceDisplay">৳ 0.00</div>
-                <p style="color: var(--tg-theme-hint-color); margin-top: 15px;">Minimum withdrawal is ৳100.</p>
+                <div class="balance-amount" id="withdrawBalanceDisplay">USDT 0.00</div>
+                <p style="color: var(--tg-theme-hint-color); margin-top: 15px;">Minimum withdrawal is 10.00 USDT.</p>
             </div>
             <div class="card">
                 <h2>Payment Details</h2>
                 <div class="input-group">
-                    <label for="paymentNumber">Your bKash / Nagad Number</label>
-                    <input type="tel" id="paymentNumber" placeholder="e.g., 01700000000">
+                    <label for="paymentAddress">Your USDT Wallet Address (TRC20)</label>
+                    <input type="text" id="paymentAddress" placeholder="e.g., T... (TRC20 Address)">
                 </div>
                 <button class="btn" id="finalWithdrawBtn" disabled>Withdraw</button>
             </div>
@@ -135,10 +135,17 @@
         <div id="referral-view" class="view">
             <div class="header"><h1>Referrals</h1><p>Invite friends and earn more!</p></div>
             <div class="card">
+                <h2>Your Referral Stats</h2>
+                <div class="ad-info-grid">
+                    <div class="ad-info-item"><h3 id="referralCountDisplay">0</h3><p>Total Referrals</p></div>
+                    <div class="ad-info-item"><h3 id="referralBonusDisplay">USDT 0.00</h3><p>Referral Earnings</p></div>
+                </div>
+            </div>
+            <div class="card">
                 <h2>Your Referral Link</h2>
-                <p>Share this link with your friends. When they join, you get a bonus!</p>
+                <p>Share this link with your friends. You get 0.5 USDT for each verified friend who joins!</p>
                 <p id="referralLink" title="Click to copy"></p>
-                <p style="font-size:12px; color:var(--tg-theme-hint-color); margin-top:15px;">Note: Referral rewards require backend processing and will be credited after verification.</p>
+                <p style="font-size:12px; color:var(--tg-theme-hint-color); margin-top:15px;">Note: Referral rewards require backend processing and will be credited to your balance after verification.</p>
             </div>
         </div>
 
@@ -158,59 +165,86 @@
         document.addEventListener('DOMContentLoaded', function () {
             const tg = window.Telegram.WebApp;
 
-            // DOM Elements
+            // --- DOM Elements ---
             const balanceDisplay = document.getElementById('balanceDisplay'), adCountDisplay = document.getElementById('adCountDisplay'),
                   dailyAdCountDisplay = document.getElementById('dailyAdCountDisplay'), rewardedBtn = document.getElementById('rewardedBtn'),
                   mainWithdrawBtn = document.getElementById('mainWithdrawBtn'), statusMessage = document.getElementById('statusMessage'),
-                  withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay'), paymentNumberInput = document.getElementById('paymentNumber'),
+                  withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay'), paymentAddressInput = document.getElementById('paymentAddress'),
                   finalWithdrawBtn = document.getElementById('finalWithdrawBtn'), referralLinkDisplay = document.getElementById('referralLink'),
+                  referralCountDisplay = document.getElementById('referralCountDisplay'), referralBonusDisplay = document.getElementById('referralBonusDisplay'),
                   adminPanel = document.getElementById('adminPanel'), userInfoDisplay = document.getElementById('userInfo');
 
             // --- App Constants & Configuration ---
             // To set up your bot, search for "EDIT_THIS" and replace the values on the following lines.
+            const ADMIN_ID = 6357701459; // EDIT_THIS: Replace with your numeric Telegram User ID.
+            const BOT_USERNAME = 'YourBotUsername'; // EDIT_THIS: Replace with your bot's username.
+            const WEBAPP_NAME = 'YourWebAppName';   // EDIT_THIS: Replace with your web app's short name.
             
-            // EDIT_THIS: Replace 6357701459 with your numeric Telegram User ID for admin access.
-            const ADMIN_ID = 7059569996; 
-            
-            // EDIT_THIS: Replace 'YourBotUsername' with your bot's username from @BotFather.
-            const BOT_USERNAME = 'Onlineincome241_bot'; 
-            
-            // EDIT_THIS: Replace 'YourWebAppName' with your web app's short name from @BotFather.
-            const WEBAPP_NAME = 'Onlineincome';   
-            
-            const WITHDRAW_THRESHOLD = 10, ADS_PER_PAISA = 50, PAISA_REWARD = 2, DAILY_AD_LIMIT = 1000;
+            const WITHDRAW_THRESHOLD = 10;      // 10 USDT
+            const AD_REWARD_CENTS = 1;          // 0.01 USDT = 1 cent
+            const REFERRAL_BONUS_USDT = 0.5;    // 0.5 USDT
+            const DAILY_AD_LIMIT = 1000;
 
-            // App State
-            let state = { balanceInPaisa: 0, totalAdCount: 0, dailyAdCount: 0, lastAdDate: null };
+            // --- App State ---
+            // balanceInCents is used to avoid floating point issues. 100 cents = 1 USDT.
+            let state = {
+                balanceInCents: 0,
+                totalAdCount: 0,
+                dailyAdCount: 0,
+                lastAdDate: null,
+                referralCount: 0 
+            };
 
             // ---- State Management ----
             function getTodayDateString() { return new Date().toISOString().split('T')[0]; }
             function loadState() {
                 try {
-                    const savedState = JSON.parse(localStorage.getItem('earningAppState'));
-                    if (savedState) { state = savedState; }
+                    const savedState = JSON.parse(localStorage.getItem('earningAppUSDTState'));
+                    if (savedState) { 
+                        // Ensure all state properties are present
+                        state = { ...state, ...savedState };
+                    }
                 } catch (e) { console.error("Could not load state", e); }
+                
+                // Reset daily ad count if it's a new day
                 if (state.lastAdDate !== getTodayDateString()) {
-                    state.dailyAdCount = 0; state.lastAdDate = getTodayDateString(); saveState();
+                    state.dailyAdCount = 0;
+                    state.lastAdDate = getTodayDateString();
+                    saveState();
                 }
             }
-            function saveState() { try { localStorage.setItem('earningAppState', JSON.stringify(state)); } catch (e) { console.error("Could not save state", e); } }
+            function saveState() {
+                try {
+                    localStorage.setItem('earningAppUSDTState', JSON.stringify(state));
+                } catch (e) { console.error("Could not save state", e); }
+            }
             
             // ---- UI Updates & View Management ----
             function updateUI() {
-                const balanceInTaka = (state.balanceInPaisa / 100).toFixed(2);
-                balanceDisplay.textContent = `৳ ${balanceInTaka}`;
+                const balanceInUSDT = (state.balanceInCents / 100).toFixed(2);
+                
+                // Home & Withdraw Views
+                balanceDisplay.textContent = `USDT ${balanceInUSDT}`;
                 adCountDisplay.textContent = state.totalAdCount;
                 dailyAdCountDisplay.textContent = `${state.dailyAdCount} / ${DAILY_AD_LIMIT}`;
-                withdrawBalanceDisplay.textContent = `৳ ${balanceInTaka}`;
-                const isWithdrawalPossible = parseFloat(balanceInTaka) >= WITHDRAW_THRESHOLD;
+                withdrawBalanceDisplay.textContent = `USDT ${balanceInUSDT}`;
+                
+                // Referral View
+                referralCountDisplay.textContent = state.referralCount;
+                const referralBonus = (state.referralCount * REFERRAL_BONUS_USDT).toFixed(2);
+                referralBonusDisplay.textContent = `USDT ${referralBonus}`;
+
+                // Button States
+                const isWithdrawalPossible = parseFloat(balanceInUSDT) >= WITHDRAW_THRESHOLD;
                 mainWithdrawBtn.disabled = !isWithdrawalPossible;
-                mainWithdrawBtn.textContent = isWithdrawalPossible ? 'Go to Withdraw' : `Reach ৳${WITHDRAW_THRESHOLD} to Withdraw`;
+                mainWithdrawBtn.textContent = isWithdrawalPossible ? 'Go to Withdraw' : `Reach ${WITHDRAW_THRESHOLD.toFixed(2)} USDT to Withdraw`;
+                
                 finalWithdrawBtn.disabled = !isWithdrawalPossible;
-                finalWithdrawBtn.textContent = isWithdrawalPossible ? `Withdraw ৳${balanceInTaka}` : `Minimum ৳${WITHDRAW_THRESHOLD} required`;
+                finalWithdrawBtn.textContent = isWithdrawalPossible ? `Withdraw ${balanceInUSDT} USDT` : `Minimum ${WITHDRAW_THRESHOLD.toFixed(2)} USDT required`;
+                
                 const adLimitReached = state.dailyAdCount >= DAILY_AD_LIMIT;
                 rewardedBtn.disabled = adLimitReached;
-                rewardedBtn.textContent = adLimitReached ? 'Daily Limit Reached' : 'Watch Rewarded Ad';
+                rewardedBtn.textContent = adLimitReached ? 'Daily Limit Reached' : 'Watch Ad (+0.01 USDT)';
             }
             
             function showView(viewId) {
@@ -231,33 +265,57 @@
 
             // ---- Ad Handling ----
             function handleAdSuccess() {
-                state.totalAdCount++; state.dailyAdCount++; state.lastAdDate = getTodayDateString();
-                if (state.totalAdCount % ADS_PER_PAISA === 0) {
-                    state.balanceInPaisa += PAISA_REWARD;
-                    showStatus(`Congratulations! You earned ${PAISA_REWARD} paisa.`, 'success');
-                } else {
-                    const remainingAds = ADS_PER_PAISA - (state.totalAdCount % ADS_PER_PAISA);
-                    showStatus(`Ad watched. Watch ${remainingAds} more ad(s) to earn.`, 'info');
-                }
-                saveState(); updateUI();
+                state.totalAdCount++;
+                state.dailyAdCount++;
+                state.lastAdDate = getTodayDateString();
+                state.balanceInCents += AD_REWARD_CENTS;
+                
+                showStatus(`Success! +${(AD_REWARD_CENTS / 100).toFixed(2)} USDT has been added.`, 'success');
+                saveState();
+                updateUI();
             }
-            function handleAdError(error) { console.error('Ad Error:', error); showStatus('Failed to load ad. Please try again.', 'error'); }
+
+            function handleAdError(error) {
+                console.error('Ad Error:', error);
+                showStatus('Failed to load ad. Please try again.', 'error');
+            }
 
             // ---- App Logic ----
             function requestAd() {
-                if (state.dailyAdCount >= DAILY_AD_LIMIT) { showStatus("You've reached the daily ad limit.", 'error'); return; }
+                if (state.dailyAdCount >= DAILY_AD_LIMIT) {
+                    showStatus("You've reached the daily ad limit.", 'error');
+                    return;
+                }
                 showStatus('Loading ad, please wait...', 'info');
+                // The Promise is a simulator for the ad network callback
                 Promise.resolve(show_9459352()).then(handleAdSuccess).catch(handleAdError);
             }
 
             function handleWithdrawal() {
-                const balanceInTaka = (state.balanceInPaisa / 100).toFixed(2), paymentNumber = paymentNumberInput.value.trim();
-                if (parseFloat(balanceInTaka) < WITHDRAW_THRESHOLD) { showStatus(`You need at least ৳${WITHDRAW_THRESHOLD} to withdraw.`, 'error'); return; }
-                if (!/^\d{11}$/.test(paymentNumber)) { showStatus('Please enter a valid 11-digit payment number.', 'error'); return; }
-                const user = tg.initDataUnsafe.user, message = `--- Withdrawal Request ---\n\nUser ID: ${user.id}\nName: ${user.first_name} ${user.last_name || ''}\nUsername: @${user.username || 'N/A'}\n\nAmount: ৳${balanceInTaka}\nPayment No: ${paymentNumber}`;
+                const balanceInUSDT = (state.balanceInCents / 100).toFixed(2);
+                const walletAddress = paymentAddressInput.value.trim();
+
+                if (parseFloat(balanceInUSDT) < WITHDRAW_THRESHOLD) {
+                    showStatus(`You need at least ${WITHDRAW_THRESHOLD.toFixed(2)} USDT to withdraw.`, 'error');
+                    return;
+                }
+                // Basic validation for USDT TRC20 address
+                if (!walletAddress.startsWith('T') || walletAddress.length < 34) {
+                    showStatus('Please enter a valid USDT (TRC20) wallet address.', 'error');
+                    return;
+                }
+                const user = tg.initDataUnsafe.user;
+                const message = `--- Withdrawal Request ---\n\nUser ID: ${user.id}\nName: ${user.first_name} ${user.last_name || ''}\nUsername: @${user.username || 'N/A'}\n\nAmount: ${balanceInUSDT} USDT\nWallet Address: ${walletAddress}`;
+                
                 tg.sendData(message);
                 showStatus('Your withdrawal request has been sent for review.', 'success');
-                state.balanceInPaisa = 0; saveState(); updateUI(); paymentNumberInput.value = ''; showView('home-view');
+                
+                // Reset balance after request
+                state.balanceInCents = 0;
+                saveState();
+                updateUI();
+                paymentAddressInput.value = '';
+                showView('home-view');
             }
             
             function generateReferralLink() {
@@ -266,9 +324,36 @@
                     referralLinkDisplay.textContent = `https://t.me/${BOT_USERNAME}/${WEBAPP_NAME}?startapp=ref${user.id}`;
                 } else {
                     referralLinkDisplay.textContent = "Referral link cannot be generated. Configure bot info in the script.";
-                    referralLinkDisplay.style.color = "var(--warning-color)"; referralLinkDisplay.style.cursor = "default";
+                    referralLinkDisplay.style.color = "var(--warning-color)";
+                    referralLinkDisplay.style.cursor = "default";
                 }
             }
+
+            /* 
+            --- DEVELOPER NOTE ON REFERRALS ---
+            The current code only SHOWS referral stats stored locally. It does NOT automatically
+            increment the count or add the bonus when a new user joins.
+            
+            A secure referral system requires a backend server:
+            1. New User (User B) clicks referral link from User A.
+            2. User B's app sends their own ID and the referrer's ID (from start_param) to your server.
+            3. Your server verifies the referral (e.g., checks if User B is new).
+            4. If valid, the server updates User A's data in a database (increments referralCount).
+            5. The server then adds the 0.5 USDT bonus to User A's balance.
+            6. When User A opens the app, it should fetch the latest state (including referrals) from the server.
+            
+            The logic below is a placeholder for the user who was referred.
+            */
+            function handleReferralStart() {
+                if (tg.initDataUnsafe.start_param) {
+                    const referrerId = tg.initDataUnsafe.start_param.replace('ref', '');
+                    console.log("App started with referral parameter. Referrer ID:", referrerId);
+                    // You can show a welcome message to the new user.
+                    // The actual reward logic MUST be handled on a backend.
+                    showStatus('Welcome! You joined via a referral link.', 'success', 5000);
+                }
+            }
+
 
             // ---- Event Listeners ----
             rewardedBtn.addEventListener('click', () => requestAd());
@@ -277,6 +362,7 @@
             document.getElementById('navWithdraw').addEventListener('click', () => showView('withdraw-view'));
             document.getElementById('navRefer').addEventListener('click', () => showView('referral-view'));
             mainWithdrawBtn.addEventListener('click', () => showView('withdraw-view'));
+
             referralLinkDisplay.addEventListener('click', () => {
                 if(navigator.clipboard && referralLinkDisplay.textContent.startsWith('https://')) {
                     navigator.clipboard.writeText(referralLinkDisplay.textContent)
@@ -287,18 +373,21 @@
 
             // ---- Initialization ----
             function initializeApp() {
-                tg.ready(); tg.expand();
-                loadState(); updateUI(); generateReferralLink();
+                tg.ready();
+                tg.expand();
+                
+                loadState();
+                updateUI();
+                generateReferralLink();
+                handleReferralStart();
+                
                 const user = tg.initDataUnsafe.user;
                 if (user && user.id === ADMIN_ID) {
                     adminPanel.style.display = 'block';
                     userInfoDisplay.textContent = `Welcome, Admin! User: ${user.first_name} (@${user.username || 'N/A'}), ID: ${user.id}`;
                 }
-                if (tg.initDataUnsafe.start_param) {
-                    console.log("Started with param:", tg.initDataUnsafe.start_param);
-                    showStatus('Welcome! You have joined via a referral link.', 'success');
-                }
             }
+
             initializeApp();
         });
     </script>
